@@ -2929,6 +2929,28 @@ function Get-ModifiableScheduledTaskFile {
         }
     }
 
+    # enumerate all schtask with schtasks
+    schtasks.exe /query /V /FO CSV | ConvertFrom-Csv | where {$_.TaskName -notlike "*microsoft*"} | ForEach-Object {
+        try {
+            $TaskName = $_.TaskName
+            $TaskToRun = $_."Task To Run"
+            $RunAsUser = $_."Run As User"
+            if($TaskToRun) {
+                # check schtask command
+                $TaskToRun | Get-ModifiablePath | ForEach-Object {
+                    $Out = New-Object PSObject
+                    $Out | Add-Member Noteproperty 'TaskName' $TaskName
+                    $Out | Add-Member Noteproperty 'RunAsUser' $RunAsUser
+                    $Out | Add-Member Noteproperty 'TaskToRun' $TaskToRun
+                    $Out
+                }
+            }
+        }
+        catch {
+            Write-Verbose "Error: $_"
+        }
+    }
+
     $ErrorActionPreference = $OrigError
 }
 
@@ -3721,6 +3743,32 @@ function Get-CachedGPPPassword {
     catch {Write-Error $Error[0]}
 }
 
+function Get-InterestingPowershellHistory {
+    <#
+        .SYNOPSIS
+    
+            get interesting powershell history
+    
+            PowerSploit Function: Get-InterestingPowershellHistory
+            Author: Edward
+         
+        .DESCRIPTION
+    
+            Get-InterestingPowershellHistory searches powershell history for interesting command and password.
+    
+        .EXAMPLE
+    
+            PS C:\> Get-InterestingPowershellHistory
+
+        .LINK
+    #>
+        try {
+            $Out = $(Get-Content $Env:userprofile\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt)
+            $Out
+        }
+    
+        catch {Write-Error $Error[0]}
+    }
 
 function Write-UserAddMSI {
 <#
@@ -3941,6 +3989,14 @@ function Invoke-AllChecks {
     $Results | Format-List
     if($HTMLReport) {
         $Results | ConvertTo-HTML -Head $Header -Body "<H2>Cached GPP Files</H2>" | Out-File -Append $HtmlReportFile
+    }
+    "`n"
+
+    "`n`n[*] Checking for Interesting Powershell History...."
+    $Results = Get-InterestingPowershellHistory | Where-Object {$_}
+    $Results | Format-List
+    if($HTMLReport) {
+        $Results | ConvertTo-HTML -Head $Header -Body "<H2>Cached Powershell History</H2>" | Out-File -Append $HtmlReportFile
     }
     "`n"
 
